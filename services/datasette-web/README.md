@@ -1,0 +1,1 @@
+This service connects to a Cloud Bucket (defined by `GCS_BUCKET`) and using [FUSE](https://cloud.google.com/run/docs/tutorials/network-filesystems-fuse) to serve all the SQLite databases in the bucket.

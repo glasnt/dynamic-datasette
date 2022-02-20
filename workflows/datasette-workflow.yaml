@@ -1,0 +1,81 @@
+main:
+    params: [args]
+    steps:
+        - init:
+              assign:
+                  - project: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+                  - event_type: ${args.event_type}
+                  - event_file: ${args.event_file}
+                  - event_bucket: ${args.event_bucket}
+                  - urls: ${args.urls}
+                  - datasette_bucket: ${args.datasette_bucket}
+                  - datasette_service: datasette
+                  - datasette_region: us-central1
+        - eventTypeSwitch:
+              switch:
+                  - condition: ${args.event_type == "google.storage.object.finalize"}
+                    next: processData
+                  - condition: ${args.event_type == "google.storage.object.delete"}
+                    next: updateMetadata
+        - eventTypeNotSupported:
+              raise: ${"eventType " + args.event_type + " is not supported"}
+              next: end
+        - processData:
+              call: http.post
+              args:
+                  url: ${urls.GCF_PROCESS_UPLOAD}
+                  auth:
+                      type: OIDC
+                  body:
+                      event_file: ${event_file}
+                      event_bucket: ${event_bucket}
+        - updateMetadata:
+              call: http.post
+              args:
+                  url: ${urls.GCP_UPDATE_METADATA}
+                  auth:
+                      type: OIDC
+        - getService:
+              try:
+                  call: googleapis.run.v1.namespaces.services.get
+                  args:
+                      name: ${"namespaces/" + project + "/services/" + datasette_service}
+                      location: ${datasette_region}
+                  result: service
+              except:
+                  as: e
+                  steps:
+                      - known_errors:
+                            switch:
+                                - condition: ${e.code == 404}
+                                  return: "The service ${datasette_service} doesn't exist. Have you completed your deployment?"
+                      - unhandled_exception:
+                            raise: ${e}
+        - replaceService:
+              call: googleapis.run.v1.namespaces.services.replaceService
+              args:
+                  location: ${datasette_region}
+                  name: ${"namespaces/" + project + "/services/" + datasette_service}
+                  body:
+                      apiVersion: "serving.knative.dev/v1"
+                      kind: "Service"
+                      metadata:
+                          name: ${datasette_service}
+                          annotations:
+                              run.googleapis.com/launch-stage: BETA
+                      spec:
+                          template:
+                              metadata:
+                                  annotations:
+                                      run.googleapis.com/execution-environment: gen2
+                              spec:
+                                  containers:
+                                      - image: ${service.spec.template.spec.containers[0].image}
+                                        env:
+                                            - name: UPDATE_TIMESTAMP
+                                              value: ${string(sys.now())}
+                                            - name: GCS_BUCKET
+                                              value: ${datasette_bucket}
+              result: serviceUpdate
+        - return:
+              return: ${serviceUpdate}

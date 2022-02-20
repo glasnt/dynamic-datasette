@@ -1,0 +1,22 @@
+# Call just the process-upload function with test data
+# NOTE: test data must exist as indicated.
+
+main:
+    params: [input]
+    steps:
+    - init:
+        assign:
+          - projectId: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - region: "us-central1"
+    - processData:
+        call: http.post
+        args:
+          url: ${"https://" + region + "-" + projectId + ".cloudfunctions.net/process-upload"}
+          auth:
+            type: OIDC
+          body:
+            event_file: testmarkdown.md
+            event_bucket: ${"upload-" + projectId}
+        result: processDataResponse
+    - returnOutput:
+            return: ${processDataResponse.body}

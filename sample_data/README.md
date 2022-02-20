@@ -1,0 +1,1 @@
+The sample data here was generated using [generatedata.com](https://generatedata.com/), exporting to CSV, or from various `simonw/*-to-sqlite` repo test data.

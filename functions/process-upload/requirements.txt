@@ -1,0 +1,7 @@
+google-cloud-storage
+filetype
+
+# sqlite utils
+csvs-to-sqlite
+yaml-to-sqlite
+markdown-to-sqlite
